@@ -147,7 +147,6 @@ class TabularFeaturizer(Featurizer):
             tile (np.ndarray): one-hot vector of the tile index
         """
         assert len(state) == len(self.state_bounds), "State must have the same number of dimensions as the state bounds"
-        print(self.action_bounds)
         assert self.action_bounds[0] <= action < self.action_bounds[1], "Action must be within the bounds"
         assert np.all([bound[0] <= s < bound[1] for s, bound in zip(state, self.state_bounds)]), "State must be within the bounds"
 
@@ -157,7 +156,6 @@ class TabularFeaturizer(Featurizer):
 
         one_hot = np.zeros((self.n_features, 1))
         hot_index = self.table[state_action]
-        print(f'hot_index: {hot_index} for state-action pair: {state_action}')
         one_hot[hot_index] = 1
         if self.include_bias:
             one_hot[-1] = 1
@@ -194,7 +192,6 @@ class TileFeaturizer(Featurizer):
             tile_dims = [tile_dims] * self.n_dims
         assert len(tile_dims) == len(state_bounds), "Tile dimensions must have the same number of dimensions as the state bounds"
         assert np.all([0 < tile_dim for tile_dim in tile_dims]), "Tile dimensions must be positive"
-        self.tile_dims = tile_dims
 
         if offset is not None:
             assert isinstance(offset, list) or isinstance(offset, float) or offset is None, "Offset must be a list, a float or None"
@@ -202,11 +199,12 @@ class TileFeaturizer(Featurizer):
             if isinstance(offset, float):
                 offset = [offset] * self.n_dims
             assert len(offset) == len(state_bounds), "Offset must have the same number of dimensions as the state bounds"
-            assert np.all([0 <= offset < tile_dim for offset, tile_dim in zip(offset, self.tile_dims)]), "Offset must be within the tile dimensions"
-            self.offsets = offset
+            assert np.all([0 <= offset < tile_dim for offset, tile_dim in zip(offset, tile_dims)]), "Offset must be within the tile dimensions"
         else:
             offset = [0] * self.n_dims        
-            
+
+        self.tile_dims = tile_dims
+        self.offsets = offset
         self.tiles_per_dim =[int((bound[1] - bound[0] + 1) / tile_dim) for bound, tile_dim in zip(self.state_bounds, self.tile_dims)]
         self.num_tiles = np.prod(self.tiles_per_dim)
     
