@@ -1,5 +1,6 @@
 .DS_Store
 experiments/
+figures/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
