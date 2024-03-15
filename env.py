@@ -78,8 +78,8 @@ class FourRoomsEnv(Env):
 
     def __init__(self, goal_pos=(10, 10)) -> None:
         super().__init__()
-        self.rows = 11
-        self.cols = 11
+        self.n_rows = 11
+        self.n_cols = 11
 
         # Coordinate system is (x, y) where x is the horizontal and y is the vertical direction
         self.walls = [
@@ -108,11 +108,14 @@ class FourRoomsEnv(Env):
 
         self.action_space = spaces.Discrete(len(FourRoomAction))
         self.observation_space = spaces.Tuple(
-            (spaces.Discrete(self.rows), spaces.Discrete(self.cols))
+            (spaces.Discrete(self.n_rows), spaces.Discrete(self.n_cols))
         )
 
-    def reset(self) -> Tuple[int, int]:
+    def reset(self, options: dict = None) -> Tuple[int, int]:
         """Reset agent to the starting position.
+
+        Args:
+            options (dict): additional options for the environment (not used in this)
 
         Returns:
             observation (Tuple[int,int]): returns the initial observation
@@ -168,4 +171,22 @@ class FourRoomsEnv(Env):
         Returns:
             valid (bool): True if position is valid, False otherwise
         """
-        return pos not in self.walls and 0 <= pos[0] < self.cols and 0 <= pos[1] < self.rows
+        return pos not in self.walls and 0 <= pos[0] < self.n_cols and 0 <= pos[1] < self.n_rows
+    
+    def get_quadrant(self, state: Tuple[int, int]) -> int:
+        """
+        Get the quadrant of the state
+        Args:
+            state (Tuple[int, int]): state
+        Returns:
+            quadrant (int): quadrant of the state
+        """
+        x, y = state
+        if x < 5 and y < 5:
+            return 0
+        elif x < 5 and y >= 5:
+            return 1
+        elif x >= 5 and y < 4:
+            return 2
+        else:
+            return 3
