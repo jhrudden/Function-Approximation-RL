@@ -199,9 +199,9 @@ class TileFeaturizer(Featurizer):
             if isinstance(offset, float):
                 offset = [offset] * self.n_dims
             assert len(offset) == len(state_bounds), "Offset must have the same number of dimensions as the state bounds"
-            assert np.all([0 <= offset < tile_dim for offset, tile_dim in zip(offset, tile_dims)]), "Offset must be within the tile dimensions"
+            assert np.all([0.0 <= offset < tile_dim for offset, tile_dim in zip(offset, tile_dims)]), "Offset must be within the tile dimensions"
         else:
-            offset = [0] * self.n_dims        
+            offset = [0.0] * self.n_dims        
 
         self.tile_dims = tile_dims
         self.offsets = offset
@@ -263,7 +263,7 @@ class GridWorldTabularFeaturizer(TabularFeaturizer):
         assert hasattr(env.unwrapped, "n_cols"), "Environment must have a n_cols attribute"
         self.n_rows = env.unwrapped.n_rows
         self.n_cols = env.unwrapped.n_cols
-        super().__init__([(0, self.n_rows), (0, self.n_cols)], (0, env.action_space.n), include_bias)
+        super().__init__([(0, self.n_rows), (0, self.n_cols)], (0, env.action_space.n), include_bias=include_bias)
     
 class GridWorldTileFeaturizer(TileFeaturizer):
     """
