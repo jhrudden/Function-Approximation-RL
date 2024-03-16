@@ -35,6 +35,8 @@ def semi_gradient_sarsa(
     epsilon: float,
     gamma: float,
     featurizer: Featurizer,
+    check_points: set = {},
+    mean_td: bool = False
 ) -> np.ndarray:
     """Implement the semi-gradient SARSA algorithm.
 
@@ -45,6 +47,8 @@ def semi_gradient_sarsa(
         epsilon: probability of exploration
         gamma: discount factor
         featurizer: GridWorldTileFeaturizer
+        check_points: set of episodes to save the learned weight vector
+        mean_td: whether to use mean TD error as stopping criterion
     
     Returns:
         w: learned weight vector, shape (n_features, 1)
@@ -56,6 +60,12 @@ def semi_gradient_sarsa(
 
     steps_per_episode = np.zeros(num_episodes)
 
+    save_weights = None
+    if check_points is not None:
+        save_weights = np.zeros((len(check_points), w.shape[0]))
+        saved = 0
+    else:
+        check_points = set()
 
     for e_ndx in range(num_episodes):
         state, _ = env.reset()
@@ -75,13 +85,23 @@ def semi_gradient_sarsa(
             
             next_action, _ = policy(next_state)
             x_next = featurizer.featurize(next_state, next_action)
-            w += alpha * (reward + gamma * q_predict(x_next, w) - q_x) * grad
+            q_next = q_predict(x_next, w)
+
+            td_error = reward + gamma * q_next - q_x
+            if mean_td:
+                w -= alpha * td_error * (gamma * q_gradient(x_next, w) - grad)
+            else:
+                w += alpha * td_error * grad
             state = next_state
             action = next_action
 
+        if (e_ndx + 1) in check_points:
+            save_weights[saved] = w.flatten()
+            saved += 1
+
         steps_per_episode[e_ndx] = t
     
-    return w, steps_per_episode
+    return w, steps_per_episode, save_weights
 
 
 
