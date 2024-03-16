@@ -72,38 +72,60 @@ class CompositionFeaturizer(Featurizer):
         return f"Comp({', '.join([str(f) for f in self.featurizers])})"
 
 
-class FunctionalFeaturizer:
-    def __init__(self, func: Callable[[tuple], float], label:str, include_bias: bool = False):
+class FunctionalFeaturizer(Featurizer):
+    def __init__(self, func: Callable[[tuple], float], label:str, include_bias: bool = False, normalize_factor: float = 1):
+        super().__init__(include_bias)
         self.func = func
         self.label = label
+        self.normalize_factor = normalize_factor
+        
 
     @property
     def n_features(self) -> int:
         return 1
 
     def featurize(self, state: tuple, action: int) -> np.ndarray:
-        return np.array([self.func(state, action)])
+        return np.array([self.func(state, action) / self.normalize_factor])
 
     def __repr__(self) -> str:
-        return f"{self.label}"
+        return f"{self.label}" + (f" (bias={self.include_bias})" if self.include_bias else "") + (f" / {self.normalize_factor}" if self.normalize_factor != 1 else "")
 
+# TODO: abstract the state bounds and action bounds into a separate class
 class StateActionFeaturizer(Featurizer):
-    def __init__(self, include_bias: bool = True):
+    def __init__(self, state_bounds: List[int], nA: int, include_bias: bool = False, normalize: bool = False):  # TODO: note these values values are hardcoded for the four rooms environment but should be calculated from the environment
         super().__init__(include_bias)
+        assert len(state_bounds) == 2, "Bounds must be a list of length"
+        assert nA > 0, "Number of actions must be greater than 0"
+        self.normalize = normalize
+        self.nA = nA
+        self.state_bounds = state_bounds
+
     
     @property
     def n_features(self) -> int:
-        return 3 + int(self.include_bias) # col, row, action, bias (optional)
+        return 2 + self.nA + int(self.include_bias) # col, row, action, bias (optional)
     
     def featurize(self, state: tuple, action: int) -> np.ndarray:
         col, row = state
+        assert col < self.state_bounds[0] and row < self.state_bounds[1], "State must be within the bounds"
         vec = np.zeros((self.n_features, 1))
         vec[0] = col
-        vec[1] = row
-        vec[2] = action
+        vec[1] = row 
+        vec[2 + action] = 1
+        if self.normalize:
+            vec[0] /= self.state_bounds[0]
+            vec[1] /= self.state_bounds[1]
+
         if self.include_bias:
             vec[-1] = 1
         return vec
+    
+    def __repr__(self) -> str:
+        str_rep = f"StateAction (bias={self.include_bias}"
+        if self.normalize:
+            str_rep += ", normalize=True"
+        str_rep += ")"
+        return str_rep
 
 class TabularFeaturizer(Featurizer):
     """
@@ -148,7 +170,7 @@ class TabularFeaturizer(Featurizer):
         """
         assert len(state) == len(self.state_bounds), "State must have the same number of dimensions as the state bounds"
         assert self.action_bounds[0] <= action < self.action_bounds[1], "Action must be within the bounds"
-        assert np.all([bound[0] <= s < bound[1] for s, bound in zip(state, self.state_bounds)]), "State must be within the bounds"
+        assert np.all([bound[0] <= s < bound[1] for s, bound in zip(state, self.state_bounds)]), f"State must be within the bounds {self.state_bounds} for state {state}"
 
         decomposed_state = [int((s - bound[0])) for s, bound in zip(state, self.state_bounds)]
 
@@ -205,7 +227,8 @@ class TileFeaturizer(Featurizer):
 
         self.tile_dims = tile_dims
         self.offsets = offset
-        self.tiles_per_dim =[int((bound[1] - bound[0] + 1) / tile_dim) for bound, tile_dim in zip(self.state_bounds, self.tile_dims)]
+        self.tiles_per_dim =[int((bound[1] - bound[0]) / tile_dim) for bound, tile_dim in zip(self.state_bounds, self.tile_dims)]
+        print(self.tiles_per_dim)
         self.num_tiles = np.prod(self.tiles_per_dim)
     
     @property
@@ -282,4 +305,22 @@ class GridWorldTileFeaturizer(TileFeaturizer):
         self.n_rows = env.unwrapped.n_rows
         self.n_cols = env.unwrapped.n_cols
         super().__init__([(0, self.n_rows), (0, self.n_cols)], (0, env.action_space.n), tile_dims, offset, include_bias)
+
+
+class MountainCarTileFeaturizer(TabularFeaturizer):
+    def __init__(self, env: Env, tile_dim: int = 8, include_bias: bool = True):
+        tile_bounds = [[0, 8], [0, 8]]
+        action_bounds = (0, env.action_space.n)
+        self.tile_dim = tile_dim
+        super().__init__(tile_bounds, action_bounds, include_bias)
+        self.real_bounds = list(zip(env.observation_space.low, env.observation_space.high))
+    
+    def featurize(self, state: tuple, action: int) -> np.ndarray:
+        # take the state and figure out which tile it is in based on dimensions of each state
+        min_max_scale = lambda x, min_x, max_x: (x - min_x) / (max_x - min_x)
+        tile_dim = [int(min_max_scale(s, min_x, max_x) * self.tile_dim) for s, (min_x, max_x) in zip(state, self.real_bounds)]
+        return super().featurize(tile_dim, action)
+
+    def __repr__(self) -> str:
+        return f"MountainCarTileFeaturizer (bias={self.include_bias}) {self.tile_dim}x{self.tile_dim}"
         
